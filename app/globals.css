@@ -24,3 +24,12 @@
 .npc-ability{display:flex;gap:8px;margin:8px 0}.npc-ability input{flex:1;min-width:0;background:#fafbf9}.npc-ability button{flex-shrink:0}
 @media(max-width:1100px){.npc-layout{grid-template-columns:1fr}.npc-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.npc-editor{padding:16px}.npc-list{grid-template-columns:1fr}.npc-layout{gap:14px}.npc-portrait-row{align-items:flex-start}.npc-stats b{font-size:20px}}
+
+
+/* Fixed ability and survival gauge groups */
+.npc-fixed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:10px 0 20px}
+.npc-fixed-field{display:flex;flex-direction:column;gap:7px;border:1px solid #e7ebe7;border-radius:8px;background:#fafbf9;padding:12px;color:#506357;font-size:12px}
+.npc-fixed-field span{display:block;font-weight:600}
+.npc-fixed-field small{display:block;margin-top:5px;font-size:10px;font-weight:400;color:#98a59b;line-height:1.5}
+.npc-fixed-field input{width:100%;background:#fff;color:#344439}
+@media(max-width:700px){.npc-fixed-grid{grid-template-columns:1fr}}

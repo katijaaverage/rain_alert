@@ -4,6 +4,21 @@ import {useEffect,useState} from 'react';
 import type {Npc} from '@/lib/npc-seed';
 
 const statuses=['미정','확정','보류','제외'];
+// 기존 기획에서 명시된 항목만 기본 칸으로 표시합니다. 기본값은 비워둡니다.
+const attributeFields=[
+  {name:'힘',hint:'힘 관련 능력'},
+  {name:'운반',hint:'운반 효율 관련 능력'},
+  {name:'전투',hint:'전투 관련 능력'},
+  {name:'정신 관련 능력',hint:'정신력 감소 등에 대한 저항 능력'},
+];
+const survivalFields=[
+  {name:'체력',hint:'신체 상태 게이지'},
+  {name:'정신력',hint:'현재 정신력 게이지'},
+  {name:'바이탈',hint:'생존 상태 게이지'},
+  {name:'스태미나',hint:'활동에 사용하는 게이지'},
+];
+const fixedNames=new Set([...attributeFields,...survivalFields].map(f=>f.name));
+
 export default function NpcPage(){
   const [npcs,setNpcs]=useState<Npc[]>([]);
   const [version,setVersion]=useState(0);
@@ -35,7 +50,33 @@ export default function NpcPage(){
     setNpcs(old=>old.map(n=>n.id===id?{...n,abilities:next}:n));
     setDirty(true);setMessage('저장하지 않은 변경사항이 있어요.');
   }
-  async function save(){
+  function setFixed(id:string,name:string,value:string){
+    const npc=npcs.find(n=>n.id===id);
+    if(!npc)return;
+    const index=npc.abilities.findIndex(a=>a.name===name);
+    const next=npc.abilities.slice();
+    if(index>=0){
+      if(value==='')next.splice(index,1);
+      else next[index]={name,value};
+    }else if(value!=='')next.push({name,value});
+    abilities(id,next);
+  }
+  function setExtra(id:string,extraIndex:number,part:'name'|'value',value:string){
+    const npc=npcs.find(n=>n.id===id);
+    if(!npc)return;
+    const indices=npc.abilities.map((a,i)=>fixedNames.has(a.name)?-1:i).filter(i=>i>=0);
+    const index=indices[extraIndex];
+    if(index===undefined)return;
+    const next=npc.abilities.map((a,i)=>i===index?{...a,[part]:value}:a);
+    abilities(id,next);
+  }
+  function removeExtra(id:string,extraIndex:number){
+    const npc=npcs.find(n=>n.id===id);
+    if(!npc)return;
+    const indices=npc.abilities.map((a,i)=>fixedNames.has(a.name)?-1:i).filter(i=>i>=0);
+    abilities(id,npc.abilities.filter((_,i)=>i!==indices[extraIndex]));
+  }
+    async function save(){
     setBusy(true);
     try{
       const r=await fetch('/api/npcs',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({npcs,version})});
@@ -74,7 +115,7 @@ export default function NpcPage(){
           <div><span>테스트 NPC</span><b>{npcs.length}<small>명</small></b></div>
           <div><span>확정</span><b>{npcs.filter(n=>n.status==='확정').length}<small>명</small></b></div>
           <div><span>미정</span><b>{npcs.filter(n=>n.status==='미정').length}<small>명</small></b></div>
-          <div><span>능력치 설정</span><b>{npcs.filter(n=>n.abilities.some(a=>a.name.trim()&&a.value.trim())).length}<small>/ 5</small></b></div>
+          <div><span>능력치 설정</span><b>{npcs.filter(n=>n.abilities.some(a=>a.name.trim()&&a.value.trim()&&attributeFields.some(f=>f.name===a.name))).length}<small>/ 5</small></b></div>
         </div>
         <div className="notice">ⓘ <span>성격, 능력치, 관계 및 거처는 직접 입력하기 전까지 <b>미정</b>이에요. 모든 NPC는 같은 기본 AI를 사용해요.</span></div>
         <div className="npc-layout">
@@ -94,12 +135,28 @@ export default function NpcPage(){
               <label className="wide">성격 · 행동 성향<textarea value={current.personality} onChange={e=>edit(current.id,'personality',e.target.value)} placeholder="미정 · 성격과 행동 우선순위 자유 입력"/></label>
               <label className="wide">관계 · 친밀도 설정<textarea value={current.relationships} onChange={e=>edit(current.id,'relationships',e.target.value)} placeholder="미정 · 플레이어/NPC와의 관계 자유 입력"/></label>
             </div>
-            <div className="npc-ability-head"><h3>능력치</h3><button disabled={current.abilities.length>=30} onClick={()=>abilities(current.id,[...current.abilities,{name:'',value:''}])}>+ 능력치 추가</button></div>
-            <p className="npc-hint">능력치 종류와 수치는 직접 정해요. 이름이나 값이 비어 있다면 확정된 것으로 취급하지 않아요.</p>
-            {current.abilities.map((ability,i)=><div className="npc-ability" key={i}>
-              <input aria-label={'능력치 이름 '+(i+1)} placeholder="능력치 이름" value={ability.name} onChange={e=>abilities(current.id,current.abilities.map((a,j)=>i===j?{...a,name:e.target.value}:a))}/>
-              <input aria-label={'능력치 수치 '+(i+1)} placeholder="수치 (미정)" value={ability.value} onChange={e=>abilities(current.id,current.abilities.map((a,j)=>i===j?{...a,value:e.target.value}:a))}/>
-              <button aria-label={'능력치 삭제 '+(i+1)} onClick={()=>abilities(current.id,current.abilities.filter((_,j)=>j!==i))}>✕</button>
+            <div className="npc-ability-head"><h3>고유 능력치</h3></div>
+            <p className="npc-hint">기존 기획의 힘·운반·전투·정신 관련 능력을 따로 입력해요. 기준 배율과 NPC별 값은 아직 정하지 않았으므로 비워둡니다.</p>
+            <div className="npc-fixed-grid">
+              {attributeFields.map(field=><label key={field.name} className="npc-fixed-field">
+                <span>{field.name}<small>{field.hint}</small></span>
+                <input aria-label={field.name+' 능력치'} inputMode="decimal" placeholder="미정" value={current.abilities.find(a=>a.name===field.name)?.value??''} onChange={e=>setFixed(current.id,field.name,e.target.value)}/>
+              </label>)}
+            </div>
+            <div className="npc-ability-head"><h3>생존 게이지</h3></div>
+            <p className="npc-hint">능력치 배율과 구분되는 현재 상태 수치예요. 최대치와 시작 값은 따로 결정할 때 입력할 수 있어요.</p>
+            <div className="npc-fixed-grid">
+              {survivalFields.map(field=><label key={field.name} className="npc-fixed-field">
+                <span>{field.name}<small>{field.hint}</small></span>
+                <input aria-label={field.name+' 게이지'} inputMode="decimal" placeholder="미정" value={current.abilities.find(a=>a.name===field.name)?.value??''} onChange={e=>setFixed(current.id,field.name,e.target.value)}/>
+              </label>)}
+            </div>
+            <div className="npc-ability-head"><h3>기타 능력치 (선택)</h3><button disabled={current.abilities.length>=30} onClick={()=>abilities(current.id,[...current.abilities,{name:'',value:''}])}>+ 항목 추가</button></div>
+            <p className="npc-hint">기존에 입력한 사용자 정의 항목은 아래에 보존돼요. 새 능력치가 확정되기 전에는 추가하지 않아도 돼요.</p>
+            {current.abilities.filter(a=>!fixedNames.has(a.name)).map((ability,i)=><div className="npc-ability" key={i}>
+              <input aria-label={'기타 능력치 이름 '+(i+1)} placeholder="능력치 이름" value={ability.name} onChange={e=>setExtra(current.id,i,'name',e.target.value)}/>
+              <input aria-label={'기타 능력치 수치 '+(i+1)} placeholder="수치 (미정)" value={ability.value} onChange={e=>setExtra(current.id,i,'value',e.target.value)}/>
+              <button aria-label={'기타 능력치 삭제 '+(i+1)} onClick={()=>removeExtra(current.id,i)}>✕</button>
             </div>)}
             <div className="form npc-form"><label className="wide">추가 설정<textarea value={current.notes} onChange={e=>edit(current.id,'notes',e.target.value)} placeholder="아직 결정하지 않은 설정은 비워두세요."/></label></div>
             <div className="drawer-foot"><button disabled={busy||!dirty} className="primary" onClick={()=>void save()}>변경사항 저장</button></div>
