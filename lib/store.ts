@@ -1,0 +1,4 @@
+import {env} from 'cloudflare:workers';
+import {seed} from './seed';
+export async function read(){const row=await env.DB!.prepare('SELECT data, version FROM workspace WHERE id = ?').bind('main').first<{data:string,version:number}>();return row?{items:JSON.parse(row.data),version:row.version}:{items:seed,version:0};}
+export async function save(items:unknown,version:number){if(!Array.isArray(items)||items.length>200)throw Error('물자 목록 형식이 올바르지 않습니다.'); const data=JSON.stringify(items);if(data.length>8000000)throw Error('이미지 용량을 줄여 주세요.');const result=version===0?await env.DB!.prepare('INSERT OR IGNORE INTO workspace (id,data,version) VALUES (?,?,1)').bind('main',data).run():await env.DB!.prepare('UPDATE workspace SET data=?,version=version+1 WHERE id=? AND version=?').bind(data,'main',version).run();if(!result.meta.changes)throw Error('다른 창에서 변경되었습니다. 새로고침 후 다시 수정해 주세요.');return {version:version+1};}
